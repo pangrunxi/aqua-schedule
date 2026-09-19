@@ -151,6 +151,8 @@ li.task .remove { width: 30px; height: 30px; border-radius: 9px; border: 0; back
 li.task .remove:hover { color: var(--coral); background: var(--bg2); }
 .empty { color: var(--muted); text-align: center; padding: 18px 8px; }
 .done-toggle { margin-top: 12px; border: 0; background: transparent; color: var(--muted); font-weight: 600; font-size: 13px; padding: 4px 0; }
+.foot { margin-top: 36px; text-align: center; }
+.foot button { border: 0; background: transparent; color: var(--muted); font-size: 12.5px; text-decoration: underline; text-underline-offset: 3px; }
 
 /* ---------- toast + dialog ---------- */
 .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-weight: 600; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; max-width: calc(100% - 32px); text-align: center; z-index: 20; }
@@ -259,6 +261,10 @@ body[data-skin="minimal"] .toast { color: var(--surface); }
     <button type="button" class="done-toggle" id="doneToggle" hidden></button>
     <ul class="tasks" id="doneTasks" hidden style="margin-top:8px"></ul>
   </section>
+
+  <footer class="foot">
+    <button type="button" id="resetBtn">Start over (clears your tasks and fish on this device)</button>
+  </footer>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -268,7 +274,7 @@ body[data-skin="minimal"] .toast { color: var(--surface); }
     <h3 id="dlgTitle">End this session early?</h3>
     <p id="dlgText">Your newest fish will swim away. The task stays on your list.</p>
     <div class="actions">
-      <button type="button" id="dlgStay">Keep focusing</button>
+      <button type="button" id="dlgStay">Cancel</button>
       <button type="button" class="end" id="dlgEnd">End session</button>
     </div>
   </div>
@@ -681,14 +687,25 @@ document.addEventListener("visibilitychange", () => (document.hidden ? onHide() 
 window.addEventListener("blur", onHide);
 window.addEventListener("focus", onShow);
 
-function openDialog() {
-  $("dlgText").textContent = state.fish.length ? "Your newest fish will swim away. The task stays on your list." : "The session won't count. The task stays on your list.";
+let onConfirm = null;
+function confirmDialog(title, text, confirmLabel, fn) {
+  $("dlgTitle").textContent = title; $("dlgText").textContent = text; $("dlgEnd").textContent = confirmLabel;
+  onConfirm = fn;
   $("veil").classList.add("show");
   $("dlgStay").focus();
 }
-function closeDialog() { $("veil").classList.remove("show"); $("endBtn").focus(); }
+function openDialog() {
+  confirmDialog("End this session early?", state.fish.length ? "Your newest fish will swim away. The task stays on your list." : "The session won't count. The task stays on your list.", "End session", () => { if (session) finish(false); });
+}
+function closeDialog() { $("veil").classList.remove("show"); onConfirm = null; }
 $("dlgStay").addEventListener("click", closeDialog);
-$("dlgEnd").addEventListener("click", () => { $("veil").classList.remove("show"); if (session) finish(false); });
+$("dlgEnd").addEventListener("click", () => { const fn = onConfirm; closeDialog(); if (fn) fn(); });
+$("resetBtn").addEventListener("click", () => confirmDialog("Start over?", "This clears your tasks, sessions, and fish on this device and reloads the app with the sample tasks.", "Start over", () => {
+  if (session) { clearInterval(session.timer); session = null; }
+  endBreak(true);
+  try { localStorage.removeItem(STORE_KEY); } catch (e) { /* ignore */ }
+  location.reload();
+}));
 $("veil").addEventListener("click", (e) => { if (e.target === $("veil")) closeDialog(); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("veil").classList.contains("show")) closeDialog(); });
 
