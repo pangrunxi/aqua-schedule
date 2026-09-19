@@ -2,7 +2,7 @@
 
 A working web prototype of **Aqua Schedule**, a focus and task-management app for college students that my team designed in CS 570 (Introduction to Human-Computer Interaction) at UW–Madison in Fall 2024. The course deliverable was a Figma prototype; this version turns the core loop into a working app.
 
-**Live demo:** https://USERNAME.github.io/aqua-schedule/
+**Live demo:** https://pangrunxi.github.io/aqua-schedule/
 
 ## What it does
 
