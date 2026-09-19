@@ -31,6 +31,7 @@
 }
 html { scroll-padding-top: env(safe-area-inset-top, 0px); }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body {
   margin: 0; font-family: "Nunito", "Segoe UI", system-ui, sans-serif; color: var(--ink);
   background: linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%) fixed; background-color: var(--bg);
@@ -88,6 +89,8 @@ body[data-skin="minimal"] .tank-empty { color: var(--muted); text-shadow: none; 
 .chips button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; font-weight: 600; font-size: 13px; color: var(--muted); min-height: 36px; }
 .chips button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .chips button:disabled { opacity: .45; cursor: default; }
+.chips .custom { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.chips .custom input { width: 72px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); min-height: 36px; }
 .clock { text-align: center; padding: 10px 0 4px; }
 .clock button { border: 0; background: transparent; font-weight: 700; font-size: 60px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1; color: var(--ink); padding: 4px 10px; border-radius: 12px; }
 .clock .hint { color: var(--muted); font-size: 13px; min-height: 1.4em; }
@@ -189,7 +192,6 @@ body[data-skin="minimal"] .toast { color: var(--surface); }
   <section>
     <div class="row">
       <h2>Focus</h2>
-      <span class="pill" id="notifPill">Notifications allowed</span>
     </div>
     <div class="card">
       <select class="task-pick" id="taskPick" aria-label="Task to focus on"></select>
@@ -197,7 +199,9 @@ body[data-skin="minimal"] .toast { color: var(--surface); }
         <button type="button" data-min="25" aria-pressed="true">25 min</button>
         <button type="button" data-min="45" aria-pressed="false">45 min</button>
         <button type="button" data-min="60" aria-pressed="false">60 min</button>
+        <button type="button" id="customChip" aria-pressed="false">Custom</button>
         <button type="button" data-min="1" aria-pressed="false">1 min (demo)</button>
+        <span class="custom" id="customWrap" hidden><input type="number" id="customMin" min="5" max="180" step="5" value="30" aria-label="Session length in minutes"> min</span>
       </div>
       <div class="clock">
         <button type="button" id="clock" aria-describedby="clockHint">25:00</button>
@@ -222,7 +226,7 @@ body[data-skin="minimal"] .toast { color: var(--surface); }
       </div>
 
       <label class="switch">
-        <span>Block notifications from other apps while I focus</span>
+        <span>Remind me to turn on Do Not Disturb when a session starts</span>
         <input type="checkbox" id="blockNotifs" checked>
       </label>
       <label class="switch">
@@ -235,7 +239,7 @@ body[data-skin="minimal"] .toast { color: var(--surface); }
   <section>
     <div class="row">
       <h2>Tasks</h2>
-      <button type="button" class="sync" id="syncBtn">Sync Canvas and Calendar</button>
+      <button type="button" class="sync" id="syncBtn">Sync Canvas and Calendar (demo)</button>
     </div>
     <div class="synced-at" id="syncedAt"></div>
     <form class="quick" id="quickAdd">
@@ -462,7 +466,7 @@ function renderTasks() {
   toggle.hidden = !done.length;
   toggle.textContent = `${state.showDone ? "Hide" : "Show"} ${done.length} done ${done.length === 1 ? "task" : "tasks"}`;
   doneUl.hidden = !(state.showDone && done.length);
-  $("syncedAt").textContent = state.syncedAt ? `Last synced ${timeAgo(state.syncedAt)}` : "Not synced yet";
+  $("syncedAt").textContent = state.syncedAt ? `Last demo sync ${timeAgo(state.syncedAt)}` : "Sync is a demo: it adds sample tasks. A real version would connect to Canvas and Google Calendar.";
 }
 function timeAgo(ts) {
   const m = Math.round((Date.now() - ts) / 60000);
@@ -508,8 +512,8 @@ $("syncBtn").addEventListener("click", () => {
     incoming.forEach((n) => state.tasks.push({ id: state.nextId++, done: false, ...n }));
     state.syncedAt = Date.now();
     save(); renderTasks(); renderPicker();
-    btn.disabled = false; btn.textContent = "Sync Canvas and Calendar";
-    toast(incoming.length ? `Synced ${incoming.length} new ${incoming.length === 1 ? "task" : "tasks"} from Canvas and Calendar` : "Everything is already up to date");
+    btn.disabled = false; btn.textContent = "Sync Canvas and Calendar (demo)";
+    toast(incoming.length ? `Demo sync: added ${incoming.length} sample ${incoming.length === 1 ? "task" : "tasks"} as if from Canvas and Calendar` : "Everything is already up to date");
   }, 1200);
 });
 
@@ -540,6 +544,7 @@ $("durations").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-min]");
   if (!b || session || breakTimer) return;
   chosenMin = Number(b.dataset.min);
+  $("customWrap").hidden = true;
   $("durations").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
   paintClock(chosenMin * 60, chosenMin * 60);
   updateStartLabel();
@@ -556,8 +561,7 @@ function setLiveControls(on) {
   $("live").classList.toggle("show", on);
   $("taskPick").disabled = on;
   $("durations").querySelectorAll("button").forEach((b) => (b.disabled = on));
-  $("notifPill").textContent = on && state.blockNotifs ? "Notifications blocked" : "Notifications allowed";
-  $("notifPill").classList.toggle("on", on && state.blockNotifs);
+  $("customMin").disabled = on;
 }
 function startSession(taskId, totalSec, endAt, resumed) {
   const task = state.tasks.find((t) => t.id === taskId);
@@ -570,7 +574,7 @@ function startSession(taskId, totalSec, endAt, resumed) {
   lastAnnounced = null;
   paintClock(remaining(), totalSec);
   session.timer = setInterval(tick, 500);
-  toast(resumed ? `Resumed your session on “${task.title}”` : `Focusing on “${task.title}”`);
+  toast(resumed ? `Resumed your session on “${task.title}”` : (state.blockNotifs ? `Focusing on “${task.title}”. Turn on Do Not Disturb for ${Math.round(totalSec / 60)} minutes.` : `Focusing on “${task.title}”`));
 }
 $("startBtn").addEventListener("click", () => {
   const id = Number($("taskPick").value);
@@ -704,7 +708,7 @@ function playChime() {
   } catch (e) { /* no sound */ }
 }
 $("blockNotifs").checked = state.blockNotifs;
-$("blockNotifs").addEventListener("change", (e) => { state.blockNotifs = e.target.checked; save(); if (session) setLiveControls(true); });
+$("blockNotifs").addEventListener("change", (e) => { state.blockNotifs = e.target.checked; save(); });
 $("chime").checked = state.chime;
 $("chime").addEventListener("change", (e) => { state.chime = e.target.checked; save(); });
 function applySkin(skin) {
@@ -714,6 +718,23 @@ function applySkin(skin) {
 }
 document.querySelectorAll("[data-skin-pick]").forEach((b) => b.addEventListener("click", () => applySkin(b.dataset.skinPick)));
 $("tipClose").addEventListener("click", () => { state.tipDismissed = true; save(); $("tip").hidden = true; });
+
+/* custom session length */
+$("customChip").addEventListener("click", () => {
+  if (session || breakTimer) return;
+  $("durations").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === $("customChip"))));
+  $("customWrap").hidden = false;
+  chosenMin = Number($("customMin").value) || 30;
+  paintClock(chosenMin * 60, chosenMin * 60); updateStartLabel();
+  $("customMin").focus(); $("customMin").select();
+});
+$("customMin").addEventListener("input", () => {
+  if (session || breakTimer) return;
+  const v = Math.min(180, Math.max(1, Math.round(Number($("customMin").value) || 0)));
+  if (!v) return;
+  chosenMin = v;
+  paintClock(chosenMin * 60, chosenMin * 60); updateStartLabel();
+});
 
 let toastTimer;
 function toast(msg) {
